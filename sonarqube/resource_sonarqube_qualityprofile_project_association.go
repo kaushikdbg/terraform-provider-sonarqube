@@ -103,6 +103,15 @@ func resourceSonarqubeQualityProfileProjectAssociationRead(d *schema.ResourceDat
 	sonarQubeURL := m.(*ProviderConfiguration).sonarQubeURL
 	sonarQubeURLSubPath := sonarQubeURL.Path
 	sonarQubeURL.Path = strings.TrimSuffix(sonarQubeURLSubPath, "/") + "/api/qualityprofiles/search"
+	searchLanguage := d.Get("language").(string)
+	if len(idSlice) == 3 {
+		searchLanguage = idSlice[2]
+	}
+	sonarQubeURL.RawQuery = url.Values{
+		"qualityProfile": []string{idSlice[0]},
+		"language":       []string{searchLanguage},
+		"ps":             []string{"500"},
+	}.Encode()
 
 	resp, err := httpRequestHelper(
 		m.(*ProviderConfiguration).httpClient,
@@ -125,19 +134,14 @@ func resourceSonarqubeQualityProfileProjectAssociationRead(d *schema.ResourceDat
 
 	var qualityProfileID string
 	for _, value := range getQualityProfileResponse.Profiles {
-		if len(idSlice) == 3 {
-			if idSlice[0] == value.Name && idSlice[2] == value.Language {
-				qualityProfileID = value.Key
-				language = value.Language
-				qualityProfile = value.Name
-			}
-		} else {
-			if idSlice[0] == value.Name && d.Get("language").(string) == value.Language {
-				qualityProfileID = value.Key
-				language = value.Language
-				qualityProfile = value.Name
-			}
+		if idSlice[0] == value.Name && searchLanguage == value.Language {
+			qualityProfileID = value.Key
+			language = value.Language
+			qualityProfile = value.Name
 		}
+	}
+	if qualityProfileID == "" {
+		return fmt.Errorf("resourceSonarqubeQualityProfileProjectAssociationRead: Failed to find quality profile key for name '%s' and language '%s'", idSlice[0], searchLanguage)
 	}
 
 	// With the qualityProfileID we can check if the project name is associated
