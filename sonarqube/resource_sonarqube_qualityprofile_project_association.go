@@ -167,10 +167,10 @@ func resourceSonarqubeQualityProfileProjectAssociationRead(d *schema.ResourceDat
 		return fmt.Errorf("resourceSonarqubeQualityProfileProjectAssociationRead: Failed to decode json into struct: %+v", err)
 	}
 	for _, value := range getQualityProfileProjectResponse.Results {
-		if idSlice[1] == value.Key {
+		if idSlice[1] == value.Name {
 			d.SetId(d.Id())
 			errs := []error{}
-			errs = append(errs, d.Set("project", value.Key))
+			errs = append(errs, d.Set("project", value.Name))
 			errs = append(errs, d.Set("quality_profile", qualityProfile))
 			errs = append(errs, d.Set("language", language))
 			return errors.Join(errs...)
