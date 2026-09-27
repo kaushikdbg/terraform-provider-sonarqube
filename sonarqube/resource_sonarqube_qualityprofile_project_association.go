@@ -96,13 +96,27 @@ func resourceSonarqubeQualityProfileProjectAssociationCreate(d *schema.ResourceD
 func resourceSonarqubeQualityProfileProjectAssociationRead(d *schema.ResourceData, m interface{}) error {
 	var language string
 	var qualityProfile string
+	var qualityProfileName string
 
 	// Id is composed of qualityProfile name and project name
 	idSlice := strings.Split(d.Id(), "/")
+	if len(idSlice) == 3 {
+		qualityProfileName = idSlice[0]
+		language = idSlice[2]
+	} else {
+		qualityProfileName = idSlice[0]
+		language = d.Get("language").(string)
+	}
+
 	// Call api/qualityprofiles/search to return the qualityProfileID
 	sonarQubeURL := m.(*ProviderConfiguration).sonarQubeURL
 	sonarQubeURLSubPath := sonarQubeURL.Path
 	sonarQubeURL.Path = strings.TrimSuffix(sonarQubeURLSubPath, "/") + "/api/qualityprofiles/search"
+	sonarQubeURL.RawQuery = url.Values{
+		"qualityProfile": []string{qualityProfileName},
+		"language":       []string{language},
+		"ps":             []string{"500"},
+	}.Encode()
 
 	resp, err := httpRequestHelper(
 		m.(*ProviderConfiguration).httpClient,
@@ -125,19 +139,15 @@ func resourceSonarqubeQualityProfileProjectAssociationRead(d *schema.ResourceDat
 
 	var qualityProfileID string
 	for _, value := range getQualityProfileResponse.Profiles {
-		if len(idSlice) == 3 {
-			if idSlice[0] == value.Name && idSlice[2] == value.Language {
-				qualityProfileID = value.Key
-				language = value.Language
-				qualityProfile = value.Name
-			}
-		} else {
-			if idSlice[0] == value.Name && d.Get("language").(string) == value.Language {
-				qualityProfileID = value.Key
-				language = value.Language
-				qualityProfile = value.Name
-			}
+		if qualityProfileName == value.Name && language == value.Language {
+			qualityProfileID = value.Key
+			language = value.Language
+			qualityProfile = value.Name
+			break
 		}
+	}
+	if qualityProfileID == "" {
+		return fmt.Errorf("resourceSonarqubeQualityProfileProjectAssociationRead: Failed to find quality profile: %s (%s)", qualityProfileName, language)
 	}
 
 	// With the qualityProfileID we can check if the project name is associated
